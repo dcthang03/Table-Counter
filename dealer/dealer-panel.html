@@ -286,14 +286,28 @@ function scanQRAndAssign(seatIndex) {
   qrScanner.start(
     { facingMode: 'environment' },
     { fps: 10, qrbox: 200 },
+  
     (decodedText) => {
-      qrScanner.stop()
-      modal.style.display = 'none'
+  qrScanner.stop()
+  modal.style.display = 'none'
 
-      if (decodedText) {
-        assignUID(seatIndex, decodedText)
-      }
-    }
+  if (!decodedText) return
+
+  // 👉 chỉ giữ chữ + số
+  const uid = decodedText
+    .trim()
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+
+  if (!uid) {
+    alert('QR không hợp lệ')
+    return
+  }
+
+  assignUID(seatIndex, uid)
+}
+
+
   )
 
   closeBtn.onclick = () => {
@@ -334,7 +348,7 @@ function scanQRAndAssign(seatIndex) {
 
 
 <script>
-console.log('v1.221')
+console.log('v1.222')
 </script>
 
 </body>
