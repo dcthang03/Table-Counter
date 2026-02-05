@@ -434,6 +434,13 @@ const TABLE_BORDER = 4
 const SAFE_PADDING = 8
 const HOLD_TIME = 700
 
+// Biến global
+let rakeTotal = 0;
+let rakeHistory = [];
+let selectedPlayerId = null;
+let selectedSeatLabel = "";
+let isSubmitting = false;
+
 const seatState = {}
 const seats = {}
 let holdTimer = null
@@ -666,12 +673,7 @@ async function safeStopQR() {
   }
 }
 
-// Biến global
-let rakeTotal = 0;
-let rakeHistory = [];
-let selectedPlayerId = null;
-let selectedSeatLabel = "";
-let isSubmitting = false;
+
 
 // gọi fuction này từ UI seat
 function selectSeat(playerId, seatLabel){
