@@ -90,15 +90,36 @@ input, button { font-size: 16px; }
   height: 100%;
 }
 
+/* ===== Chia App làm 2 =====*/
+.app{
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+}
+
+/* ===== Control Panel====*/
+.control-panel{
+  flex:4;
+  background:#111;
+  color:white;
+  padding:16px;
+  border-top:3px solid #222;
+  border-radius:18px 18px 0 0;
+  box-shadow:0 -8px 30px rgba(0,0,0,.45);
+
+}
+
+
 /* ===== TABLE ===== */
 .table-area {
-  width: 100vw;
-  height: 100vh;
+  flex:6;
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-12vh);
+  
 }
+
+
 .table {
   position: relative;
   width: 270px;
@@ -133,6 +154,12 @@ input, button { font-size: 16px; }
   font-size: 10px;
   opacity: .9;
 }
+
+
+
+
+
+
 </style>
 </head>
 
@@ -177,9 +204,89 @@ input, button { font-size: 16px; }
 
 <!-- ===== PANEL VIEW ===== -->
 <div id="panelView">
-  <div class="table-area">
-    <div class="table" id="table"></div>
+    <div class="app">
+        <div class="table-area">
+            <div class="table" id="table"></div>
+        </div>
+
+        <div class="control-panel">
+          <!-- rake panel đặt ở đây -->
+            <div id="rakePanel" style="text-align:center; margin-top:20px;">
+
+  <div id="selectedSeat" style="font-size:22px; font-weight:600;">
+    No seat selected
   </div>
+
+  <div id="rakeAmount" style="
+      font-size:72px;
+      font-weight:800;
+      margin:20px 0;">
+      $0
+  </div>
+
+  <button class="rake-btn" onclick="addRake(1)">+$1</button>
+  <button class="rake-btn" onclick="addRake(5)">+$5</button>
+  <button class="rake-btn" onclick="undoRake()">← Back</button>
+
+  <br><br>
+
+  <button id="nextHandBtn"
+          onclick="nextHand()"
+          style="
+          font-size:26px;
+          padding:18px 40px;
+          background:#16a34a;
+          color:white;
+          border:none;
+          border-radius:12px;">
+      Next Hand • $0
+  </button>
+
+</div>
+        <!--Modal xác nhận rake =0 -->
+        <div id="noRakeModal" style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:rgba(0,0,0,0.6);
+align-items:center;
+justify-content:center;">
+
+  <div style="
+  background:white;
+  padding:40px;
+  border-radius:16px;
+  text-align:center;">
+
+    <h2>NO RAKE</h2>
+    <p>Close this hand with $0?</p>
+
+    <button onclick="confirmNoRake()"
+      style="font-size:20px; padding:12px 24px;">
+      Next Hand
+    </button>
+
+    <button onclick="closeModal()"
+      style="font-size:20px; padding:12px 24px;">
+      Back
+    </button>
+
+  </div>
+</div>
+
+        
+        
+        </div>
+
+    </div>
+
+
+
+
+
 </div>
 
 <!-- ===== QR MODAL ===== -->
@@ -536,6 +643,163 @@ async function safeStopQR() {
     qrScanner = null
   }
 }
+
+// Biến global
+let rakeTotal = 0;
+let rakeHistory = [];
+let selectedPlayerId = null;
+let selectedSeatLabel = "";
+let isSubmitting = false;
+
+// gọi fuction này từ UI seat
+function selectSeat(playerId, seatLabel){
+
+  // auto reset khi đổi seat
+  rakeTotal = 0;
+  rakeHistory = [];
+
+  selectedPlayerId = playerId;
+  selectedSeatLabel = seatLabel;
+
+  document.getElementById("selectedSeat")
+    .innerText = seatLabel;
+
+  updateDisplay();
+}
+
+// Add rake (stack-based undo)
+
+function addRake(amount){
+
+  if(!selectedPlayerId){
+    alert("Select a seat first");
+    return;
+  }
+
+  rakeTotal += amount;
+  rakeHistory.push(amount);
+
+  updateDisplay();
+
+  if(navigator.vibrate){
+    navigator.vibrate(30);
+  }
+}
+
+// Undo
+
+function undoRake(){
+
+  if(rakeHistory.length === 0) return;
+
+  const last = rakeHistory.pop();
+  rakeTotal -= last;
+
+  updateDisplay();
+}
+
+//Update UI
+
+function updateDisplay(){
+
+  document.getElementById("rakeAmount")
+    .innerText = "$" + rakeTotal;
+
+  document.getElementById("nextHandBtn")
+    .innerText = `Next Hand • $${rakeTotal}`;
+}
+
+//Next Hand
+
+async function nextHand(){
+
+  if(!selectedPlayerId){
+    alert("Select a seat");
+    return;
+  }
+
+  if(isSubmitting) return;
+
+  if(rakeTotal === 0){
+    openModal();
+    return;
+  }
+
+  await createHand();
+}
+
+// Modal control
+function openModal(){
+  document.getElementById("noRakeModal").style.display = "flex";
+}
+
+function closeModal(){
+  document.getElementById("noRakeModal").style.display = "none";
+}
+
+async function confirmNoRake(){
+  closeModal();
+  await createHand();
+}
+
+//Create hand nhưng chưa có table_id/dealer_id (mốt thêm sau)
+async function createHand(){
+
+  try{
+
+    isSubmitting = true;
+
+    // 1️⃣ insert hand
+    const { data: hand, error: handError } = await supabase
+      .from("hands")
+      .insert({
+        player_id: selectedPlayerId,
+        rake: rakeTotal
+      })
+      .select()
+      .single();
+
+    if(handError) throw handError;
+
+    // 2️⃣ nếu có rake → log
+    if(rakeTotal > 0){
+
+      const { error: rakeError } = await supabase
+        .from("rake_logs")
+        .insert({
+          player_id: selectedPlayerId,
+          hand_id: hand.id,
+          amount: rakeTotal
+        });
+
+      if(rakeError) throw rakeError;
+    }
+
+    resetUI();
+
+  }catch(err){
+
+    console.error(err);
+    alert("Insert failed");
+
+  }finally{
+    isSubmitting = false;
+  }
+}
+
+//Reset
+function resetUI(){
+
+  rakeTotal = 0;
+  rakeHistory = [];
+
+  updateDisplay();
+}
+// chống double insert rake
+if(isSubmitting) return;
+
+
+
 
 
 
