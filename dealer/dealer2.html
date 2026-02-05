@@ -145,9 +145,7 @@ input, button { font-size: 16px; }
 
     <select id="tableSelect">
       <option value="">-- Chọn bàn --</option>
-      <option value="A1">Bàn A1</option>
-      <option value="A2">Bàn A2</option>
-      <option value="A3">Bàn A3</option>
+
     </select>
 
     <div class="pin-display">
@@ -218,6 +216,8 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
 document.addEventListener('gestureend', e => e.preventDefault());
 
+loadTables()
+
 /* ===== SUPABASE ===== */
 const SUPABASE_URL = 'https://ymtmipkmknnsqleahlmi.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdG1pcGtta25uc3FsZWFobG1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAwOTU1MjUsImV4cCI6MjA4NTY3MTUyNX0.7pEza-TKBKJ_xqdBu93nLo-PRaHDcDIxW-bjZnrFJxw'
@@ -244,6 +244,31 @@ function updateDots() {
     d.classList.toggle('filled', i < pin.length)
   })
 }
+
+/* === load tables === */
+
+async function loadTables() {
+  const { data, error } = await sb
+    .from('tables')
+    .select('table_id')
+    .eq('active', true)
+    .order('table_id')
+
+  if (error) {
+    alert('Không load được danh sách bàn')
+    return
+  }
+
+  const select = document.getElementById('tableSelect')
+
+  data.forEach(row => {
+    const opt = document.createElement('option')
+    opt.value = row.table_id        // A1
+    opt.textContent = 'Bàn ' + row.table_id
+    select.appendChild(opt)
+  })
+}
+
 
 
 
