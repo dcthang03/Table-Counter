@@ -464,11 +464,13 @@ function createSeats() {
     seat.appendChild(num)
     seat.appendChild(uidEl)
 
+    // ===== HOLD (scan / eject) =====
     seat.addEventListener('pointerdown', () => {
       didHold = false
-        clearTimeout(holdTimer)
+      clearTimeout(holdTimer)
+
       holdTimer = setTimeout(() => {
-         didHold = true
+        didHold = true
         if (seatState[i].uid) {
           if (confirm(`Reject UID ${seatState[i].uid.slice(0,6)} ?`)) {
             ejectUID(i)
@@ -479,27 +481,29 @@ function createSeats() {
       }, HOLD_TIME)
     })
 
-    seat.addEventListener('pointerup', ()=>clearTimeout(holdTimer))
-    seat.addEventListener('pointerleave', ()=>clearTimeout(holdTimer))
-    seat.addEventListener('pointercancel', ()=>clearTimeout(holdTimer))
+    seat.addEventListener('pointerup', () => clearTimeout(holdTimer))
+    seat.addEventListener('pointerleave', () => clearTimeout(holdTimer))
+    seat.addEventListener('pointercancel', () => clearTimeout(holdTimer))
+
+    // ===== TAP (select seat) =====
+    seat.addEventListener('click', () => {
+      if (didHold) return
+      if (!seatState[i].uid) return
+
+      selectSeat(
+        seatState[i].uid,
+        `Seat ${i} • ${seatState[i].uid.slice(0,4)}`
+      )
+    })
 
     seats[i] = { el: seat, uidEl }
     tableEl.appendChild(seat)
   }
 }
 
-    // thêm click > select seat
+  
 
-    seat.addEventListener('click', () => {
-  if (didHold) return   // nếu vừa hold thì bỏ
-
-  if (!seatState[i].uid) return
-
-  selectSeat(
-    seatState[i].uid,
-    `Seat ${i} • ${seatState[i].uid.slice(0,4)}`
-  )
-})
+ 
 
 
 
