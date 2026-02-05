@@ -218,53 +218,59 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
 document.addEventListener('gestureend', e => e.preventDefault());
 
-/* ===== LOGIN WITH PIN ===== */
-let TABLE_ID = null
-let pin = ''
-
-const PIN_DB = {
-  A1: '1234',
-  A2: '2222',
-  A3: '3333'
-}
-
-function press(n) {
-  if (pin.length >= 4) return
-  pin += n
-  updateDots()
-}
-
-function backPin() {
-  pin = pin.slice(0, -1)
-  updateDots()
-}
-
-function updateDots() {
-  document.querySelectorAll('.pin-dot').forEach((d,i)=>{
-    d.classList.toggle('filled', i < pin.length)
-  })
-}
-
-function submitLogin() {
-  const table = document.getElementById('tableSelect').value
-  if (!table) return alert('Chưa chọn bàn')
-  if (pin.length !== 4) return alert('PIN phải đủ 4 số')
-  if (PIN_DB[table] !== pin) {
-    pin = ''
-    updateDots()
-    return alert('Sai PIN')
-  }
-
-  TABLE_ID = table
-  document.getElementById('loginView').style.display = 'none'
-  document.getElementById('panelView').style.display = 'block'
-  initPanel()
-}
-
 /* ===== SUPABASE ===== */
 const SUPABASE_URL = 'https://ymtmipkmknnsqleahlmi.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdG1pcGtta25uc3FsZWFobG1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAwOTU1MjUsImV4cCI6MjA4NTY3MTUyNX0.7pEza-TKBKJ_xqdBu93nLo-PRaHDcDIxW-bjZnrFJxw'
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+
+
+/* ===== LOGIN WITH PIN ===== */
+let TABLE_ID = null
+let pin = ''
+
+async function submitLogin() {
+  const table = document.getElementById('tableSelect').value
+  if (!table) return alert('Chưa chọn bàn')
+  if (pin.length !== 4) return alert('PIN phải đủ 4 số')
+
+  const { data, error } = await sb
+    .from('tables')
+    .select('table_id, pin_hash, active')
+    .eq('table_id', table)
+    .single()
+
+  if (error || !data) {
+    resetPin()
+    return alert('Bàn không tồn tại')
+  }
+
+  if (!data.active) {
+    resetPin()
+    return alert('Bàn đang bị khóa')
+  }
+
+  // ⚠️ so sánh plain text (tạm thời)
+  if (data.pin_hash !== pin) {
+    resetPin()
+    return alert('Sai PIN')
+  }
+
+  // ✅ LOGIN OK
+  TABLE_ID = data.table_id
+  document.getElementById('loginView').style.display = 'none'
+  document.getElementById('panelView').style.display = 'block'
+
+  initPanel()
+}
+
+function resetPin() {
+  pin = ''
+  document.querySelectorAll('.pin-dot')
+    .forEach(d => d.classList.remove('filled'))
+}
+
+
+
 
 /* ===== CONFIG ===== */
 const SEAT_COUNT = 9
@@ -462,7 +468,7 @@ async function safeStopQR() {
 
 
 
-console.log('dealer2.html – LOGIN PIN OK')
+console.log('dealer2.html V.101')
 </script>
 
 </body>
