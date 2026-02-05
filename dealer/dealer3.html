@@ -155,6 +155,46 @@ input, button { font-size: 16px; }
   opacity: .9;
 }
 
+.slide-container {
+  width: 100%;
+  max-width: 360px;
+  margin: 16px auto;
+}
+
+.slide-track {
+  position: relative;
+  height: 54px;
+  background: #222;
+  border-radius: 30px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.slide-text {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  color: #aaa;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.slide-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 46px;
+  height: 46px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  cursor: pointer;
+  touch-action: none;
+}
+
 
 
 
