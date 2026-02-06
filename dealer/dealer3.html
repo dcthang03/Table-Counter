@@ -935,9 +935,9 @@ async function createHand() {
   try {
     isSubmitting = true;
 
-    // 1️⃣ insert hand
+    // 1️⃣ insert rake
     const { data: hand, error: handError } = await sb
-      .from("hands")
+      .from("rake_logs")
       .insert({
         table_id: TABLE_ID,
         player_id: selectedPlayerId, // "A001"
