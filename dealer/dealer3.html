@@ -514,7 +514,7 @@ function initPanel() {
 function createSeats() {
   for (let i = 1; i <= SEAT_COUNT; i++) {
 
-    seatState[i] = { uid: null };
+    seatState[i] = { player_uid: null };
 
     const seat = document.createElement('div');
     seat.className = 'seat';
@@ -534,8 +534,8 @@ function createSeats() {
 
       holdTimer = setTimeout(() => {
         didHold = true;
-        if (seatState[i].uid) {
-          if (confirm(`Reject UID ${seatState[i].uid.slice(0,6)} ?`)) {
+        if (seatState[i].player_uid) {
+          if (confirm(`Reject PLAYER_UID ${seatState[i].player_uid.slice(0,6)} ?`)) {
             ejectUID(i);
           }
         } else {
@@ -551,7 +551,7 @@ function createSeats() {
     // ===== TAP (select / unselect seat) =====
     seat.addEventListener('click', () => {
       if (didHold) return;
-      if (!seatState[i].uid) return;
+      if (!seatState[i].player_uid) return;
 
       // 🔁 click lại để bỏ chọn
       if (selectedSeatNumber === i) {
@@ -573,8 +573,8 @@ function createSeats() {
 
       // 👉 chọn ghế
       selectSeat(
-        seatState[i].uid,
-        `Seat ${i} • ${seatState[i].uid.slice(0,4)}`,
+        seatState[i].player_uid,
+        `Seat ${i} • ${seatState[i].player_uid.slice(0,4)}`,
         i
       );
     });
@@ -657,7 +657,7 @@ function renderSeats() {
 
     el.classList.remove('occupied', 'selected');
 
-if (seatState[i].uid) {
+if (seatState[i].player_uid) {
   el.classList.add('occupied');
 }
 
@@ -681,8 +681,8 @@ if (selectedSeatNumber === i) {
 async function isValidPlayerUID(uid) {
   const { data, error } = await sb
     .from('players')
-    .select('uid')
-    .eq('uid', uid)
+    .select('player_uid')
+    .eq('player_uid', player_uid)
     .single()
 
   if (error || !data) return false
@@ -690,38 +690,38 @@ async function isValidPlayerUID(uid) {
 }
 
 
-async function assignUID(seat, uid) {
-  seatState[seat].uid = uid
+async function assignUID(seat, player_uid) {
+  seatState[seat].player_uid = player_uid
   renderSeats()
 
   const { data, error } = await sb
     .from('seats')
-    .update({ uid })
+    .update({ player_uid })
     .eq('table_uid', TABLE_UID)
     .eq('seat_number', String(seat))
     .select()
 
   if (error || !data?.length) {
-    seatState[seat].uid = null
+    seatState[seat].player_uid = null
     renderSeats()
-    alert('❌ Gán UID thất bại')
+    alert('❌ Gán PLAYER_UID thất bại')
   }
 }
 
 async function ejectUID(seat) {
-  const old = seatState[seat].uid
-  seatState[seat].uid = null
+  const old = seatState[seat].player_uid
+  seatState[seat].player_uid = null
   renderSeats()
 
   const { data, error } = await sb
     .from('seats')
-    .update({ uid: null })
+    .update({ player_uid: null })
     .eq('table_uid', TABLE_UID)
     .eq('seat_number', String(seat))
     .select()
 
   if (error || !data?.length) {
-    seatState[seat].uid = old
+    seatState[seat].player_uid = old
     renderSeats()
     alert('❌ Reject thất bại')
   }
@@ -734,7 +734,7 @@ async function loadSeats() {
     .eq('table_uid', TABLE_UID)
 
   data?.forEach(r => {
-    seatState[String(r.seat_number)].uid = r.uid
+    seatState[String(r.seat_number)].player_uid = r.player_uid
   })
   renderSeats()
 }
@@ -751,7 +751,7 @@ function initRealtime() {
         filter: `table_uid=eq.${TABLE_UID}`
       },
       p => {
-        seatState[p.new.seat_number].uid = p.new.uid
+        seatState[p.new.seat_number].player_uid = p.new.player_uid
         renderSeats()
       }
     )
@@ -781,14 +781,14 @@ async function scanQRAndAssign(seatIndex) {
 if (!uid) return alert('QR không hợp lệ')
 
 // 🔍 check UID trong bảng players
-const exists = await isValidPlayerUID(uid)
+const exists = await isValidPlayerUID(player_uid)
 if (!exists) {
   alert('❌ UID không tồn tại trong hệ thống')
   return
 }
 
 // ✅ UID hợp lệ → cho gán ghế
-assignUID(seatIndex, uid)
+assignUID(seatIndex, player_uid)
 
 
       }
