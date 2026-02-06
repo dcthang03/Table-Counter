@@ -913,11 +913,22 @@ async function createHand() {
 //Reset
 function resetUI(){
 
+  // reset rake
   rakeTotal = 0;
   rakeHistory = [];
 
+  // reset seat đang chọn
+  selectedPlayerId = null;
+  selectedSeatLabel = "";
+
+  // reset UI control panel
+  const seatEl = document.getElementById("selectedSeat");
+  if (seatEl) {
+    seatEl.innerText = "No seat selected";
+  }
+
   updateDisplay();
-    resetSlider();
+  resetSlider();
 }
 // chống double insert rake
 
