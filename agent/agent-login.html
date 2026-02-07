@@ -18,15 +18,20 @@
   user-select:none;
 }
 
-body{
-  height:100dvh;
+html{
+  height:100%;
   overflow:hidden;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+}
+
+input{
+  font-size:16px;
+}
+
+body{
+  position:fixed;
+  inset:0;
+  overflow:hidden;
   background: linear-gradient(135deg,#0f172a,#020617);
-  touch-action: manipulation;
-  overscroll-behavior:none;
 }
 
 .login-card{
@@ -37,6 +42,7 @@ body{
   backdrop-filter: blur(20px);
   border:1px solid rgba(255,255,255,0.06);
   box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  max-height:90vh;
 }
 
 .logo{
