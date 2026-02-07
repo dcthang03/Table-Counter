@@ -30,12 +30,16 @@ input{
 body{
   position:fixed;
   inset:0;
-  overflow:hidden;
-  background: linear-gradient(135deg,#0f172a,#020617);
+
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+
+  padding-top:clamp(90px,14vh,180px); /* chỉnh đẹp cho mọi máy */
 }
 
 .login-card{
-  width:380px;
+  width:min(380px,90%);
   padding:40px;
   border-radius:20px;
   background:rgba(255,255,255,0.04);
