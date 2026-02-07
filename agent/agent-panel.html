@@ -134,9 +134,16 @@ body{
     </div>
 
     <div class="card">
-      <div class="card-title">Today Rake</div>
-      <div class="card-value" id="todayRake">--</div>
+      <div class="card-title">This Week Rake</div>
+      <div class="card-value" id="thisWeekRake">--</div>
     </div>
+
+    <div class="card">
+        <div class="card-title">Last Week Rake</div>
+        <div class="card-value" id="lastWeekRake">--</div>
+    </div>
+
+    
 
   </div>
 
@@ -179,7 +186,8 @@ if(!agent_uid){
 const playersBody = document.getElementById("playersBody");
 const totalPlayersEl = document.getElementById("totalPlayers");
 const totalRakeEl = document.getElementById("totalRake");
-const todayRakeEl = document.getElementById("todayRake");
+const thisWeekRakeEl = document.getElementById("thisWeekRake");
+const lastWeekRakeEl = document.getElementById("lastWeekRake");
 const agentNameEl = document.getElementById("agentName");
 
 
@@ -201,15 +209,41 @@ async function getPlayers(){
 }
 
 
-async function getTodayRake(){
+// function tính rake theo tuần
+function getWeekRange(offset = 0){
 
-  const today = new Date().toISOString().slice(0,10);
+  const now = new Date();
+
+  // lấy thứ hiện tại (0=Sun)
+  const day = now.getDay();
+
+  // convert sang Monday start
+  const diffToMonday = (day === 0 ? -6 : 1 - day);
+
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday + (offset * 7));
+  monday.setHours(0,0,0,0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23,59,59,999);
+
+  return {
+    start: monday.toISOString(),
+    end: sunday.toISOString()
+  };
+}
+
+//Function fetch rake theo range
+
+async function getRakeByRange(start, end){
 
   const { data, error } = await sb
     .from("rake_logs")
     .select("rake")
-    .eq("agent_uid",agent_uid)
-    .gte("created_at", today);
+    .eq("agent_uid", agent_uid)
+    .gte("created_at", start)
+    .lte("created_at", end);
 
   if(error){
     console.error(error);
@@ -224,6 +258,8 @@ async function getTodayRake(){
 
   return total;
 }
+
+
 
 
 // RENDER
@@ -260,8 +296,21 @@ async function loadDashboard(){
   const players = await getPlayers();
   renderPlayers(players);
 
-  const today = await getTodayRake();
-  todayRakeEl.innerText = "$" + today.toLocaleString();
+    // THIS WEEK
+const thisWeek = getWeekRange(0);
+const thisWeekTotal = await getRakeByRange(thisWeek.start, thisWeek.end);
+
+thisWeekRakeEl.innerText =
+  "$" + thisWeekTotal.toLocaleString();
+
+
+// LAST WEEK
+const lastWeek = getWeekRange(-1);
+const lastWeekTotal = await getRakeByRange(lastWeek.start, lastWeek.end);
+
+lastWeekRakeEl.innerText =
+  "$" + lastWeekTotal.toLocaleString();
+
 }
 
 
