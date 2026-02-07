@@ -1,13 +1,19 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
 <title>Agent Login</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
+
+/* RESET */
 
 *{
   margin:0;
@@ -15,78 +21,55 @@
   box-sizing:border-box;
   font-family:'Inter',sans-serif;
   -webkit-tap-highlight-color: transparent;
-  
 }
 
 html{
   height:100%;
-  overflow:hidden;
+  overflow-x:hidden;
 }
 
-input{
-  width:100%;
-  padding:10px 12px;
-
-  font-size:16px;        /* chặn iOS zoom */
-  font-weight:400;
-  line-height:1.25;
-  letter-spacing:0.2px;
-
-  color:#e5e7eb;         /* trắng dịu – không gắt */
-  background:rgba(15,23,42,0.6);
-
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:10px;
-  outline:none;
-}
-
-input::placeholder{
-  color:#64748b;
-  opacity:1;
-  font-weight:400;
-}
-
-input:focus{
-  color:#ffffff;
-}
-
-input:focus::placeholder{
-  opacity:0.5;
-}
-
+/* BODY — keyboard safe */
 
 body{
-  position:fixed;
-  inset:0;
-  color:white;
+
+  min-height:100dvh;
 
   display:flex;
   justify-content:center;
   align-items:flex-start;
-  background: 
-  radial-gradient(circle at 20% 20%, #1e293b 0%, transparent 40%),
-  linear-gradient(135deg,#0f172a,#020617);
 
-  padding-top:clamp(90px,14vh,180px); /* chỉnh đẹp cho mọi máy */
+  padding-top:clamp(90px,14vh,180px);
+
+  color:white;
+
+  background:
+    radial-gradient(circle at 20% 20%, #1e293b 0%, transparent 40%),
+    linear-gradient(135deg,#0f172a,#020617);
 }
+
+/* CARD */
 
 .login-card{
+
   width:min(380px,90%);
   padding:40px;
-  border-radius:20px;
+
+  border-radius:22px;
+
   background:rgba(255,255,255,0.04);
-  backdrop-filter: blur(28px);
+  backdrop-filter: blur(24px);
+
   border:1px solid rgba(255,255,255,0.06);
+
   box-shadow:0 30px 80px rgba(0,0,0,0.9);
-  max-height:90vh;
-  user-select:none;
 }
+
+/* TEXT */
 
 .logo{
   text-align:center;
   font-size:22px;
   font-weight:600;
-  color:white;
   margin-bottom:8px;
 }
 
@@ -108,37 +91,85 @@ label{
   margin-bottom:6px;
 }
 
-input{
-  width:100%;
-  padding:12px 14px;
+/* UID PREFIX */
+
+.uid-wrap{
+
+  display:flex;
+  align-items:center;
+
+  background:rgba(15,23,42,0.6);
   border-radius:10px;
   border:1px solid rgba(255,255,255,0.08);
-  background:rgba(15,23,42,0.6);
-  color:white;
-  outline:none;
-  user-select:text;
+
+  padding-left:12px;
 }
 
-input:focus{
-  border:1px solid #6366f1;
-  box-shadow:0 0 0 3px rgba(99,102,241,0.25);
+.uid-prefix{
+  color:#94a3b8;
+  font-weight:500;
+  letter-spacing:1px;
 }
+
+/* INPUT */
+
+input{
+
+  width:100%;
+  padding:10px 12px;
+
+  font-size:16px; /* stop iOS zoom */
+  line-height:1.25;
+  letter-spacing:0.2px;
+
+  color:#e5e7eb;
+  background:transparent;
+
+  border:none;
+  outline:none;
+}
+
+input::placeholder{
+  color:#64748b;
+  opacity:1;
+}
+
+input:focus::placeholder{
+  opacity:0.5;
+}
+
+/* PIN needs border */
+
+.pin-input{
+  background:rgba(15,23,42,0.6);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:10px;
+}
+
+/* BUTTON */
 
 button{
+
   width:100%;
   padding:13px;
+
   border-radius:12px;
   border:none;
+
   background:#6366f1;
   color:white;
+
   font-weight:600;
   cursor:pointer;
+
   margin-top:10px;
 }
 
 button:hover{
   background:#4f46e5;
 }
+
+/* ERROR */
 
 .error{
   margin-top:12px;
@@ -157,41 +188,61 @@ button:hover{
 
 @media(max-width:420px){
   .login-card{
-    width:90%;
     padding:28px;
   }
 }
 
 </style>
 </head>
+
 <body>
 
 <div class="login-card">
+
   <div class="logo">Axion Agent Portal</div>
   <div class="subtitle">Secure access to control panel</div>
 
+  <!-- UID -->
+
   <div class="input-group">
     <label>Agent UID</label>
-    <input 
-      id="agentUidInput"
-      type="text"
-      placeholder="AG01"
-      autocapitalize="characters"
-      autocomplete="off"
-    >
+
+    <div class="uid-wrap">
+      <span class="uid-prefix">AG</span>
+
+      <input
+        id="agentUidInput"
+        placeholder="01"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        autocomplete="off"
+      >
+    </div>
   </div>
+
+  <!-- PIN -->
 
   <div class="input-group">
     <label>PIN</label>
-    <input id="pinInput" type="password" placeholder="••••">
+
+    <input
+      id="pinInput"
+      class="pin-input"
+      type="password"
+      placeholder="••••"
+      inputmode="numeric"
+      maxlength="4"
+    >
   </div>
 
   <button id="loginBtn" onclick="login()">Login</button>
 
   <div id="error" class="error">Invalid UID or PIN</div>
 
-  <div class="footer">Axion Internal System </div>
+  <div class="footer">Axion Internal System</div>
+
 </div>
+
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -209,34 +260,51 @@ const pinInput = document.getElementById("pinInput");
 const errorDiv = document.getElementById("error");
 const loginBtn = document.getElementById("loginBtn");
 
+// focus
+agentUidInput.focus();
 
-// AUTO UPPERCASE
-agentUidInput.addEventListener("input",(e)=>{
-  let value = e.target.value.toUpperCase();
-  value = value.replace(/[^A-Z0-9]/g,''); // chặn ký tự rác
-  e.target.value = value;
+
+// AUTO SKIP UID → PIN
+agentUidInput.addEventListener("input", ()=>{
+
+  agentUidInput.value = agentUidInput.value.replace(/\D/g,'').slice(0,2);
+
+  if(agentUidInput.value.length === 2){
+    pinInput.focus();
+  }
+
 });
 
 
-// AUTO FOCUS (UX rất đáng giá)
-agentUidInput.focus();
+// AUTO LOGIN PIN
+pinInput.addEventListener("input", ()=>{
+
+  pinInput.value = pinInput.value.replace(/\D/g,'').slice(0,4);
+
+  if(pinInput.value.length === 4){
+    login();
+  }
+
+});
 
 
 // LOGIN
 async function login(){
 
+  if(loginBtn.disabled) return;
+
   errorDiv.style.display = "none";
 
-  const agent_uid = agentUidInput.value.trim().toUpperCase();
+  const agent_uid = "AG" + agentUidInput.value.trim();
   const pin = pinInput.value.trim();
 
-  if(!agent_uid || !pin){
-    errorDiv.innerText = "Please enter UID and PIN";
+  if(agentUidInput.value.length !== 2 || pin.length !== 4){
+
+    errorDiv.innerText = "Enter valid UID and PIN";
     errorDiv.style.display = "block";
     return;
   }
 
-  // tránh spam click
   loginBtn.disabled = true;
   loginBtn.innerText = "Logging in...";
 
@@ -249,8 +317,13 @@ async function login(){
   loginBtn.innerText = "Login";
 
   if(error || !data?.length){
+
     errorDiv.innerText = "Invalid UID or PIN";
     errorDiv.style.display = "block";
+
+    pinInput.value="";
+    pinInput.focus();
+
     return;
   }
 
@@ -260,11 +333,9 @@ async function login(){
 }
 
 
-// ENTER KEY
+// ENTER
 document.addEventListener("keydown",(e)=>{
-  if(e.key === "Enter"){
-    login();
-  }
+  if(e.key==="Enter") login();
 });
 
 </script>
