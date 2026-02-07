@@ -249,8 +249,8 @@ async function loadDashboard(){
   // players
   const { data: players } = await sb
     .from("players")
-    .select("player_id,total_rake")
-    .eq("agent_id",agent_uid);
+    .select("player_uid,total_rake")
+    .eq("agent_uid",agent_uid);
 
   document.getElementById("totalPlayers").innerText = players?.length || 0;
 
@@ -279,7 +279,7 @@ async function loadDashboard(){
   const { data: todayLogs } = await sb
     .from("rake_logs")
     .select("rake")
-    .eq("agent_id",agent_uid)
+    .eq("agent_uid",agent_uid)
     .gte("created_at", today);
 
   let todayTotal = 0;
@@ -299,6 +299,82 @@ function logout(){
 function openPlayer(){
   window.location.href = "/agent-player.html";
 }
+
+// tổng rak
+const { data: rakeSum } = await sb
+  .from("players")
+  .select("total_rake.sum()")
+  .eq("agent_uid", agent_uid)
+  .single();
+
+document.getElementById("totalRake").innerText =
+  "$" + Number(rakeSum.sum || 0).toLocaleString();
+
+  // đếm player
+  const { count } = await sb
+  .from("players")
+  .select("*", { count: "exact", head: true })
+  .eq("agent_uid", agent_uid);
+
+totalPlayers.innerText = count;
+
+// Fetch layer
+async function getPlayers(agent_uid){
+  const { data, error } = await sb
+    .from("players")
+    .select("player_uid,total_rake")
+    .eq("agent_uid", agent_uid)
+    .order("total_rake",{ascending:false});
+
+  return data || [];
+}
+
+// Render player
+
+function renderPlayers(players){
+
+  const tbody = document.querySelector("#playersTable tbody");
+
+  let rows = "";
+  let totalRake = 0;
+
+  players.forEach(p=>{
+
+    const rake = Number(p.total_rake) || 0;
+    totalRake += rake;
+
+    rows += `
+      <tr>
+        <td>${p.player_uid}</td>
+        <td>$${rake.toLocaleString()}</td>
+      </tr>
+    `;
+  });
+
+  // render đúng 1 lần
+  tbody.innerHTML = rows;
+
+  document.getElementById("totalPlayers").innerText = players.length;
+  document.getElementById("totalRake").innerText =
+    "$" + totalRake.toLocaleString();
+}
+
+
+// Contrller
+async function loadDashboard(){
+
+  document.getElementById("agentName").innerText =
+    `Agent: ${agent_uid}`;
+
+  const players = await getPlayers(agent_uid);
+
+  renderPlayers(players);
+
+}
+
+
+
+
 
 </script>
 
