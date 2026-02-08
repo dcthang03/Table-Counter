@@ -205,6 +205,12 @@ const lastWeekRakeEl = document.getElementById("lastWeekRake");
 const agentNameEl = document.getElementById("agentName");
 const tableMetric = document.getElementById("tableMetric");
 
+// ⭐ MAKE TOTAL PLAYERS CLICKABLE
+document.querySelector("#totalPlayers")
+.closest(".card")
+.setAttribute("data-view","players_state");
+
+
 // FETCH PLAYERS
 async function getPlayers(){
 
@@ -236,13 +242,14 @@ function getWeekRange(offset = 0){
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23,59,59,999);
 
-  return {
-    start: monday,
-    end: sunday
-  };
+  return { start: monday, end: sunday };
 }
 
-// ATTACH WEEKLY RAKE (O(n))
+
+// =============================
+// ATTACH WEEKLY RAKE
+// =============================
+
 async function attachWeeklyRake(players){
 
   const { data, error } = await sb
@@ -283,8 +290,125 @@ async function attachWeeklyRake(players){
   return players;
 }
 
-// RENDER TABLE
+
+
+// =============================
+// ⭐ ATTACH PLAYER STATE + NOTE
+// =============================
+
+async function attachPlayerState(players){
+
+  const { data: sessions } = await sb
+    .from("player_sessions")
+    .select("player_uid,is_online,table_id,seat")
+    .eq("agent_uid", agent_uid);
+
+  const { data: notes } = await sb
+    .from("agent_player_notes")
+    .select("player_uid,note")
+    .eq("agent_uid", agent_uid);
+
+  const sessionMap = {};
+  const noteMap = {};
+
+  sessions?.forEach(s => sessionMap[s.player_uid] = s);
+  notes?.forEach(n => noteMap[n.player_uid] = n.note);
+
+  players.forEach(p=>{
+
+    const s = sessionMap[p.player_uid];
+
+    p.is_online = s?.is_online || false;
+    p.table_id = s?.table_id || null;
+    p.seat = s?.seat ?? null;
+
+    p.note = noteMap[p.player_uid] || "";
+  });
+
+  return players;
+}
+
+
+
+// =============================
+// SAVE NOTE (UPSERT)
+// =============================
+
+async function saveNote(player_uid, note){
+
+  await sb
+    .from("agent_player_notes")
+    .upsert({
+      agent_uid,
+      player_uid,
+      note
+    },{
+      onConflict:"agent_uid,player_uid"
+    });
+}
+
+
+
+// =============================
+// ⭐ RENDER TABLE (MULTI MODE)
+// =============================
+
 function renderTable(){
+
+  // PLAYER STATE MODE
+  if(currentView === "players_state"){
+
+    document.querySelector(".table thead").innerHTML = `
+      <tr>
+        <th>Player</th>
+        <th>Status</th>
+        <th>Table</th>
+        <th>Seat</th>
+        <th>Note</th>
+      </tr>
+    `;
+
+    playersBody.innerHTML = allPlayers.map(p=>`
+      <tr>
+        <td>${p.player_uid}</td>
+        <td>${p.is_online ? "🟢 Online" : "⚫ Offline"}</td>
+        <td>${p.table_id || "-"}</td>
+        <td>${p.seat ?? "-"}</td>
+        <td>
+          <input 
+            value="${p.note || ""}"
+            onchange="saveNote('${p.player_uid}', this.value)"
+            style="
+              background:transparent;
+              border:1px solid rgba(255,255,255,.1);
+              color:white;
+              padding:6px;
+              border-radius:6px;
+              width:140px;
+            "
+          />
+        </td>
+      </tr>
+    `).join("");
+
+    return;
+  }
+
+
+  // RAKE MODES
+  const metricText =
+    currentView === "total"
+      ? "Total Rake"
+      : currentView === "this_week"
+      ? "This Week Rake"
+      : "Last Week Rake";
+
+  document.querySelector(".table thead").innerHTML = `
+    <tr>
+      <th>Player ID</th>
+      <th>${metricText}</th>
+    </tr>
+  `;
 
   const sorted = [...allPlayers].sort((a,b)=>{
 
@@ -296,13 +420,6 @@ function renderTable(){
 
     return (b.last_week||0)-(a.last_week||0);
   });
-
-  tableMetric.innerText =
-    currentView === "total"
-      ? "Total Rake"
-      : currentView === "this_week"
-      ? "This Week Rake"
-      : "Last Week Rake";
 
   playersBody.innerHTML = sorted.map(p=>{
 
@@ -322,13 +439,20 @@ function renderTable(){
   }).join("");
 }
 
+
+
+// =============================
 // DASHBOARD
+// =============================
+
 async function loadDashboard(){
 
   agentNameEl.innerText = `UID: ${agent_uid}`;
 
   let players = await getPlayers();
+
   players = await attachWeeklyRake(players);
+  players = await attachPlayerState(players);
 
   allPlayers = players;
 
@@ -345,7 +469,12 @@ async function loadDashboard(){
   renderTable();
 }
 
+
+
+// =============================
 // CLICKABLE CARDS
+// =============================
+
 document.querySelectorAll(".card[data-view]")
 .forEach(card=>{
 
@@ -364,16 +493,19 @@ document.querySelectorAll(".card[data-view]")
 
 });
 
+
 // LOGOUT
 function logout(){
   localStorage.removeItem("agent_uid");
   window.location.href = "./agent-login.html";
 }
 
+
 // START
 loadDashboard();
 
 </script>
+
 
 </body>
 </html>
