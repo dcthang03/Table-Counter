@@ -318,7 +318,7 @@ async function attachPlayerState(players){
 
   const { data: seats } = await sb
     .from("seats")
-    .select("player_uid,table_uid,seat_number")
+    .select("player_uid,table_uid,seat_number,seated_at")
     .not("player_uid","is",null);
 
   const { data: notes } = await sb
@@ -338,7 +338,8 @@ async function attachPlayerState(players){
       const uid = String(seat.player_uid);
       seatMap[uid] = {
         table: `${seat.table_uid}-${seat.seat_number}`,
-        online: true
+        online: true,
+        seated_at: seat.seated_at
       };
     }
   });
@@ -349,6 +350,7 @@ async function attachPlayerState(players){
 
     p.is_online = Boolean(seatData);
     p.table_position = seatData?.table || "-";
+    p.seated_at = seatData?.seated_at || null;
     p.note = noteMap[String(p.player_uid)] || "";
   });
 
@@ -376,7 +378,7 @@ function queueSeatRefresh(uid){
 
     const { data, error } = await sb
       .from("seats")
-      .select("player_uid,table_uid,seat_number")
+      .select("player_uid,table_uid,seat_number,seated_at")
       .in("player_uid", uids);
 
     if(error){
@@ -405,9 +407,11 @@ function queueSeatRefresh(uid){
         player.is_online = true;
         player.table_position =
           `${seat.table_uid}-${seat.seat_number}`;
+        player.seated_at = seat.seated_at;  
       }else{
         player.is_online = false;
         player.table_position = "-";
+        player.seated_at = null;
       }
 
     });
@@ -477,13 +481,56 @@ function formatLastActivity(player){
     return `${amount} ${Math.floor(diffMin)}m ago`;
 
   return `${amount} ${Math.floor(diffMin/60)}h ago`;
+
+}
+
+// Bộ đếm thời gian ngồi 
+function formatDuration(seatedAt){
+
+  if(!seatedAt) return "-";
+
+  const diff =
+    (Date.now() - new Date(seatedAt)) / 60000;
+
+  let color = "#4ade80";
+
+  if(diff > 60) color = "#fbbf24";
+  if(diff > 120) color = "#f87171";
+
+  const h = Math.floor(diff / 60);
+  const m = Math.floor(diff % 60);
+
+  return `<span style="color:${color}">
+            ${h}h ${m}m
+          </span>`;
+}
+
+function updateSeatTimers(){
+
+  if(currentView !== "players_state") return;
+
+  document
+    .querySelectorAll("tbody tr")
+    .forEach(row=>{
+
+      const uid = row.dataset.uid;
+
+      const player = allPlayers.find(
+        p => String(p.player_uid) === uid
+      );
+
+      if(!player) return;
+
+      const cell = row.children[1];
+
+      cell.innerHTML = player.is_online
+        ? formatDuration(player.seated_at)
+        : `<span style="color:#64748b">Offline</span>`;
+    });
 }
 
 
-
-
-
-
+setInterval(updateSeatTimers, 1000);
 
 
 
@@ -496,7 +543,7 @@ function formatLastActivity(player){
 
 function renderTable(){
 
-  // PLAYER STATE MODE
+  // PLAYER STATE MODE Total Players
   if(currentView === "players_state"){
 
   document.querySelector(".table thead").innerHTML = `
@@ -512,13 +559,20 @@ function renderTable(){
 
 
   playersBody.innerHTML = sortedPlayers.map(p=>`
-    <tr>
+    <tr data-uid="${p.player_uid}">
       <td>${p.player_uid}</td>
-        <td>
-  ${p.is_online
-    ? "🎮"
-    : "💤"}
+        <td style="font-weight:600;">
+  ${
+    p.is_online
+      ? `<span style="color:#4ade80">
+           ${formatDuration(p.seated_at)}
+         </span>`
+      : `<span style="color:#64748b">
+           Offline
+         </span>`
+  }
 </td>
+
 
 
       <td>
