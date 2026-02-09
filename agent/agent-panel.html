@@ -445,7 +445,7 @@ function renderTable(){
   if(currentView === "players_state"){
     document.querySelector(".table thead").innerHTML = `
       <tr>
-        <th>Player</th>
+        <th>Player ID</th>
         <th>Status</th>
         <th>Table</th>
         <th>Note</th>
@@ -497,7 +497,7 @@ const metricText =
     <tr>
       <th>Player ID</th>
       <th>${metricText}</th>
-      ${ currentView !== "last_week" ? "<th>Last Activity</th>" : "" }
+      ${ currentView !== "last_week" ? "<th>Record</th>" : "" }
     </tr>
   `;
 
