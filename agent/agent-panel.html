@@ -27,6 +27,15 @@ body{background:#020617;color:white;min-height:100vh;}
 .table{width:100%;border-collapse:collapse;}
 .table th{text-align:left;padding:12px;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,0.06);}
 .table td{padding:14px 12px;border-bottom:1px solid rgba(255,255,255,0.04);}
+
+.week-note{
+  margin-top:-16px;
+  margin-bottom:24px;
+  font-size:12px;
+  color:#64748b;
+  text-align:right;
+}
+
 </style>
 </head>
 <body>
@@ -60,6 +69,11 @@ body{background:#020617;color:white;min-height:100vh;}
       <div class="card-value" id="lastWeekRake">--</div>
     </div>
   </div>
+
+    <div class="week-note">
+  Week starts Monday 00:00 UTC (07:00 AM Vietnam time)
+</div>
+
 
   <div class="section">
     <div class="section-title">Your Players</div>
@@ -99,9 +113,9 @@ let currentView = "this_week";
 
 let serverClockSkewMs = 0;      // serverNow - clientNow
 let prodRolloverTimer = null;   // production
-let testRolloverTimer = null;   // TEST
 
-const TEST_MODE = true; // ✅ TEST: "week" = 1 phút (UTC) để test UI
+
+
 
 // =====================
 // DOM
@@ -154,32 +168,32 @@ async function getPlayers(){
 }
 
 // =====================
-// WEEK RANGE (PROD)
+// WEEK RANGE UTC (PROD)
 // =====================
-function getWeekRange(offset = 0, baseDate = null){
+function getWeekRangeUTC(offset = 0, baseDate = null){
   const now = baseDate ? new Date(baseDate) : getServerNow();
-  const day = now.getDay(); // 0=Sun..6=Sat
+
+  const day = now.getUTCDay(); // UTC day
   const diffToMonday = (day === 0 ? -6 : 1 - day);
 
   const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + offset * 7);
-  monday.setHours(0,0,0,0);
+  monday.setUTCDate(now.getUTCDate() + diffToMonday + offset * 7);
+  monday.setUTCHours(0,0,0,0);
 
   const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23,59,59,999);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  sunday.setUTCHours(23,59,59,999);
 
   return { start: monday, end: sunday };
 }
 
-// =====================
-// TEST RANGE (UTC minute)
-// Requires RPC: get_test_week_ranges_utc() returning timestamptz in jsonb
-// =====================
-async function getTestRangesUTC(){
-  const { data, error } = await sb.rpc("get_test_week_ranges_utc");
+
+// BẢNG CHÍNH THỨC (UTC THEO TUẦN)
+
+async function getWeekRangesUTC(){
+  const { data, error } = await sb.rpc("get_week_ranges_utc");
   if(error){
-    console.error("get_test_week_ranges_utc error:", error);
+    console.error("get_week_ranges_utc error:", error);
     return null;
   }
   return {
@@ -191,16 +205,26 @@ async function getTestRangesUTC(){
   };
 }
 
-function scheduleTestRolloverUTC(nextUTCDate){
-  if(testRolloverTimer) clearTimeout(testRolloverTimer);
+function scheduleWeekRolloverUTC(nextUTCDate){
+  if(prodRolloverTimer) clearTimeout(prodRolloverTimer);
 
-  // ✅ canh theo giờ server (skew) để bám DB tốt hơn
+  // canh theo server time (skew) để bám DB
   const ms = nextUTCDate.getTime() - getServerNow().getTime();
 
-  testRolloverTimer = setTimeout(async ()=>{
-    await loadDashboard(); // reload để UI nhảy phút mới
-  }, Math.max(80, ms + 30));
+  prodRolloverTimer = setTimeout(async ()=>{
+    // tới Monday 00:00 UTC -> reload dashboard cho chuẩn tuần mới
+    currentView = "this_week";
+
+    document.querySelectorAll(".card[data-view]").forEach(c=>c.classList.remove("active"));
+    const thisWeekCard = document.querySelector('.card[data-view="this_week"]');
+    if(thisWeekCard) thisWeekCard.classList.add("active");
+
+    await loadDashboard();
+  }, Math.max(1000, ms + 200));
 }
+
+
+
 
 // =====================
 // ATTACH WEEKLY RAKE
@@ -218,25 +242,22 @@ async function attachWeeklyRake(players){
 
   let thisWeek, lastWeek;
 
-  if(TEST_MODE){
-    const r = await getTestRangesUTC();
-    if(r){
-      const nextMinute = new Date(r.this_start.getTime() + 60_000);
-      scheduleTestRolloverUTC(nextMinute);
+const r = await getWeekRangesUTC();
 
-      thisWeek = { start: r.this_start, end: r.this_end };
-      lastWeek = { start: r.last_start, end: r.last_end };
-    }else{
-      // fallback
-      const base = getServerNow();
-      thisWeek = getWeekRange(0, base);
-      lastWeek = getWeekRange(-1, base);
-    }
-  }else{
-    const base = getServerNow();
-    thisWeek = getWeekRange(0, base);
-    lastWeek = getWeekRange(-1, base);
-  }
+if(r){
+  // schedule đúng mốc tuần mới: this_start + 7 ngày (Monday 00:00 UTC tuần sau)
+  const nextMondayUTC = new Date(r.this_start.getTime() + 7 * 24 * 60 * 60 * 1000);
+  scheduleWeekRolloverUTC(nextMondayUTC);
+
+  thisWeek = { start: r.this_start, end: r.this_end };
+  lastWeek = { start: r.last_start, end: r.last_end };
+}else{
+  // fallback nếu RPC fail: dùng serverNow tính (kém chuẩn hơn)
+  const base = getServerNow();
+  thisWeek = getWeekRangeUTC(0, base);
+  lastWeek = getWeekRangeUTC(-1, base);
+}
+
 
   const map = {};
   players.forEach(p=>{
@@ -466,10 +487,11 @@ function renderTable(){
   }
 
   // RAKE MODES
-  const metricText =
-    currentView === "total" ? "Total Rake" :
-    currentView === "this_week" ? (TEST_MODE ? "This Minute" : "This Week") :
-    (TEST_MODE ? "Last Minute" : "Last Week");
+  
+const metricText =
+  currentView === "total" ? "Total Rake" :
+  currentView === "this_week" ? "This Week" :
+  "Last Week";
 
   document.querySelector(".table thead").innerHTML = `
     <tr>
@@ -511,12 +533,10 @@ function renderTable(){
 // DASHBOARD
 // =====================
 async function loadDashboard(){
-  if(TEST_MODE){
-    const c1 = document.querySelector('[data-view="this_week"] .card-title');
-    const c2 = document.querySelector('[data-view="last_week"] .card-title');
-    if(c1) c1.innerText = "This Minute (TEST)";
-    if(c2) c2.innerText = "Last Minute (TEST)";
-  }
+
+    await syncServerTime();
+
+
 
   agentNameEl.innerText = `UID: ${agent_uid}`;
 
@@ -556,12 +576,7 @@ sb.channel('rake-live')
     filter: `agent_uid=eq.${agent_uid}`
   },
   payload => {
-    if(TEST_MODE){
-      // ✅ test mode: reload để đảm bảo vào đúng "minute boundary"
-      loadDashboard();
-      return;
-    }
-
+  
     const log = payload.new;
     const player = allPlayers.find(p => p.player_uid === log.player_uid);
     if(!player) return;
@@ -623,9 +638,9 @@ function logout(){
 // START
 // =====================
 (async ()=>{
-  await syncServerTime();
+  
   await loadDashboard();
-  // ✅ TEST_MODE không dùng production rollover
+  
 })();
 
 setInterval(renderTable, 60000);
