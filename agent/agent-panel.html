@@ -165,9 +165,7 @@ body{
       <thead>
         <tr>
           <th>Player ID</th>
-          
           <th id="tableMetric">This Week</th>
-          
         </tr>
       </thead>
       <tbody id="playersBody"></tbody>
@@ -274,7 +272,6 @@ async function attachWeeklyRake(players){
     p.this_week = 0;
     p.last_week = 0;
 
-    // ⭐ NEW
     p.last_activity = null;
     p.last_rake = 0;
 
@@ -294,11 +291,7 @@ async function attachWeeklyRake(players){
     if(date >= lastWeek.start && date <= lastWeek.end)
       player.last_week += Number(log.rake);
 
-    // ⭐ LAST ACTIVITY
-    if(
-      !player.last_activity ||
-      date > new Date(player.last_activity)
-    ){
+    if(!player.last_activity || date > new Date(player.last_activity)){
       player.last_activity = log.created_at;
       player.last_rake = Number(log.rake);
     }
@@ -307,7 +300,6 @@ async function attachWeeklyRake(players){
 
   return players;
 }
-
 
 
 // =============================
@@ -386,13 +378,11 @@ function queueSeatRefresh(uid){
       return;
     }
 
-    // map seats
     const seatMap = {};
     data?.forEach(s=>{
       seatMap[String(s.player_uid)] = s;
     });
 
-    // update state
     uids.forEach(uid=>{
 
       const player = allPlayers.find(
@@ -405,9 +395,8 @@ function queueSeatRefresh(uid){
 
       if(seat){
         player.is_online = true;
-        player.table_position =
-          `${seat.table_uid}-${seat.seat_number}`;
-        player.seated_at = seat.seated_at;  
+        player.table_position = `${seat.table_uid}-${seat.seat_number}`;
+        player.seated_at = seat.seated_at;
       }else{
         player.is_online = false;
         player.table_position = "-";
@@ -416,21 +405,15 @@ function queueSeatRefresh(uid){
 
     });
 
-    // update counter
-    const onlineCount =
-      allPlayers.filter(p=>p.is_online).length;
+    const onlineCount = allPlayers.filter(p=>p.is_online).length;
 
     totalPlayersEl.innerHTML =
       `<span style="color:#4ade80">${onlineCount}</span> / ${allPlayers.length}`;
 
     renderTable();
 
-  }, 120); // gom event 120ms
+  }, 120);
 }
-
-
-
-
 
 
 // =============================
@@ -450,41 +433,29 @@ async function saveNote(player_uid, note){
     });
 }
 
-// ====== FORMATTER +rake theo thời gian ======
+
+// ====== ✅ LAST ACTIVITY: +$rake HH:mm:ss (24h) ======
 
 function formatLastActivity(player){
 
   if(!player.last_activity) return "-";
 
-  const diffMin =
-    (Date.now() - new Date(player.last_activity)) / 60000;
+  const diffMin = (Date.now() - new Date(player.last_activity)) / 60000;
 
-  // > 2h → biến mất
+  // quá 2h thì ẩn
   if(diffMin >= 120) return "-";
 
-  const amount = `+$${player.last_rake}`;
+  const amount = `+$${Number(player.last_rake||0).toLocaleString()}`;
 
-  // < 1 phút
-  if(diffMin < 1){
+  const time = new Date(player.last_activity).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 
-    const time =
-      new Date(player.last_activity)
-      .toLocaleTimeString([],{
-        hour:'2-digit',
-        minute:'2-digit'
-      });
-
-    return `${amount} ${time}`;
-  }
-
-  if(diffMin < 60)
-    return `${amount} ${Math.floor(diffMin)}m ago`;
-
-  return `${amount} ${Math.floor(diffMin/60)}h ago`;
-
+  return `${amount} ${time}`;
 }
-
-
 
 
 // Bộ đếm thời gian ngồi 
@@ -532,17 +503,7 @@ function updateSeatTimers(){
     });
 }
 
-
-
-
-
-
-
 setInterval(updateSeatTimers, 1000);
-
-
-
-
 
 
 // =============================
@@ -554,67 +515,52 @@ function renderTable(){
   // PLAYER STATE MODE Total Players
   if(currentView === "players_state"){
 
-  document.querySelector(".table thead").innerHTML = `
-    <tr>
-      <th>Player</th>
-      <th>Status</th>
-      <th>Table</th>
-      <th>Note</th>
-    </tr>
-  `;
-    const sortedPlayers = [...allPlayers]
- .sort((a,b)=> b.is_online - a.is_online);
+    document.querySelector(".table thead").innerHTML = `
+      <tr>
+        <th>Player</th>
+        <th>Status</th>
+        <th>Table</th>
+        <th>Note</th>
+      </tr>
+    `;
 
+    const sortedPlayers = [...allPlayers].sort((a,b)=> b.is_online - a.is_online);
 
-  playersBody.innerHTML = sortedPlayers.map(p=>`
-    <tr data-uid="${p.player_uid}">
-      <td>${p.player_uid}</td>
+    playersBody.innerHTML = sortedPlayers.map(p=>`
+      <tr data-uid="${p.player_uid}">
+        <td>${p.player_uid}</td>
         <td style="font-weight:600;">
-  ${
-    p.is_online
-      ? `<span style="color:#4ade80">
-           ${formatDuration(p.seated_at)}
-         </span>`
-      : `<span style="color:#64748b">
-           💤
-         </span>`
+          ${
+            p.is_online
+              ? `<span style="color:#4ade80">${formatDuration(p.seated_at)}</span>`
+              : `<span style="color:#64748b">💤</span>`
+          }
+        </td>
+        <td>
+          ${p.table_position === "-" 
+            ? "-"
+            : `<span style="color:#4ade80;font-weight:600">${p.table_position}</span>`
+          }
+        </td>    
+        <td>
+          <input 
+            value="${p.note || ""}"
+            onchange="saveNote('${p.player_uid}', this.value)"
+            style="
+              background:transparent;
+              border:1px solid rgba(255,255,255,.1);
+              color:white;
+              padding:6px;
+              border-radius:6px;
+              width:140px;
+            "
+          />
+        </td>
+      </tr>
+    `).join("");
+
+    return;
   }
-</td>
-
-
-
-      <td>
-  ${p.table_position === "-" 
-    ? "-"
-    : `<span style="color:#4ade80;font-weight:600">
-        ${p.table_position}
-      </span>`
-  }
-</td>    
-      
-      
-      
-      
-      <td>
-        <input 
-          value="${p.note || ""}"
-          onchange="saveNote('${p.player_uid}', this.value)"
-          style="
-            background:transparent;
-            border:1px solid rgba(255,255,255,.1);
-            color:white;
-            padding:6px;
-            border-radius:6px;
-            width:140px;
-          "
-        />
-      </td>
-    </tr>
-  `).join("");
-
-  return;
-}
-
 
 
   // RAKE MODES
@@ -625,17 +571,13 @@ function renderTable(){
       ? "This Week"
       : "Last Week";
 
-document.querySelector(".table thead").innerHTML = `
-<tr>
-  <th>Player ID</th>
-  <th>${metricText}</th>
-  ${
-    currentView !== "last_week"
-      ? "<th>Last Activity</th>"
-      : ""
-  }
-</tr>
-`;
+  document.querySelector(".table thead").innerHTML = `
+    <tr>
+      <th>Player ID</th>
+      <th>${metricText}</th>
+      ${ currentView !== "last_week" ? "<th>Last Activity</th>" : "" }
+    </tr>
+  `;
 
   const sorted = [...allPlayers].sort((a,b)=>{
 
@@ -650,45 +592,39 @@ document.querySelector(".table thead").innerHTML = `
 
   playersBody.innerHTML = sorted.map(p=>{
 
-    let value =
+    const value =
       currentView === "total"
         ? p.total_rake
         : currentView === "this_week"
         ? p.this_week
         : p.last_week;
 
-          const isLive =
-    p.last_activity &&
-    (Date.now() - new Date(p.last_activity)) < 5000;
+    const isLive =
+      p.last_activity &&
+      (Date.now() - new Date(p.last_activity)) < 5000;
 
     return `
-
-          <tr style="${
-      isLive
-        ? 'background:rgba(74,222,128,0.18);transition:.3s;'
-        : ''
-    }">
-    
+      <tr style="${
+        isLive
+          ? 'background:rgba(74,222,128,0.18);transition:.3s;'
+          : ''
+      }">
         <td>${p.player_uid}</td>
         <td>$${Number(value||0).toLocaleString()}</td>
 
-${
-  currentView !== "last_week"
-    ? `
-<td style="color:#4ade80;font-weight:600;width:150px;">
-  ${formatDuration(p.seated_at)}
-</td>
-`
-    : ""
-}
-
-
+        ${
+          currentView !== "last_week"
+            ? `
+              <td style="color:#4ade80;font-weight:600;width:170px;">
+                ${formatLastActivity(p)}
+              </td>
+            `
+            : ""
+        }
       </tr>
     `;
   }).join("");
 }
-
-
 
 
 // =============================
@@ -706,9 +642,7 @@ async function loadDashboard(){
 
   allPlayers = players;
 
-  // ⭐ CHỈ KHAI BÁO 1 LẦN
-  const onlineCount =
-    players.filter(p => p.is_online === true).length;
+  const onlineCount = players.filter(p => p.is_online === true).length;
 
   totalPlayersEl.innerHTML =
     onlineCount > 0
@@ -725,6 +659,7 @@ async function loadDashboard(){
 
   renderTable();
 }
+
 
 // Realtime listerner bảng rake_logs
 sb.channel('rake-live')
@@ -748,7 +683,6 @@ sb.channel('rake-live')
 
     const rake = Number(log.rake);
 
-    // update metrics
     player.this_week += rake;
     player.total_rake += rake;
 
@@ -756,7 +690,6 @@ sb.channel('rake-live')
     player.last_activity = log.created_at;
     player.last_rake = rake;
 
-    // update cards nhanh
     thisWeekRakeEl.innerText =
       "$" + allPlayers
         .reduce((s,p)=>s+(p.this_week||0),0)
@@ -772,8 +705,8 @@ sb.channel('rake-live')
 )
 .subscribe();
 
-//realtime listioner bảng seats
 
+// realtime listener bảng seats
 sb.channel('seats-live')
 .on(
   'postgres_changes',
@@ -781,7 +714,6 @@ sb.channel('seats-live')
     event:'*',
     schema:'public',
     table:'seats'
-    
   },
   payload => {
 
@@ -795,10 +727,6 @@ sb.channel('seats-live')
   }
 )
 .subscribe();
-
-
-
-
 
 
 // =============================
