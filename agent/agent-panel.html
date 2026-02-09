@@ -339,7 +339,7 @@ async function attachPlayerState(players){
       seatMap[uid] = {
         table: `${seat.table_uid}-${seat.seat_number}`,
         online: true,
-        seated_at: seat.created_at 
+        seated_at: seat.seated_at
       };
     }
   });
