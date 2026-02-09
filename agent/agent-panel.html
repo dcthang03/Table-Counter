@@ -198,6 +198,12 @@ if(!agent_uid){
 let allPlayers = [];
 let currentView = "this_week";
 
+let realtimeStarted = false;
+
+// ⭐ BUSINESS WEEK (GLOBAL)
+let WEEK_START = null;
+let WEEK_END = null;
+
 // DOM
 const playersBody = document.getElementById("playersBody");
 const totalPlayersEl = document.getElementById("totalPlayers");
@@ -230,23 +236,6 @@ async function getPlayers(){
 }
 
 
-// WEEK RANGE
-function getWeekRange(offset = 0){
-
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = (day === 0 ? -6 : 1 - day);
-
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + offset * 7);
-  monday.setHours(0,0,0,0);
-
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23,59,59,999);
-
-  return { start: monday, end: sunday };
-}
 
 
 // =============================
@@ -258,15 +247,15 @@ async function attachWeeklyRake(players){
   const { data, error } = await sb
     .from("rake_logs")
     .select("player_uid,rake,created_at")
-    .eq("agent_uid", agent_uid);
+    .eq("agent_uid", agent_uid)
+    .gte("created_at", WEEK_START)
+    .lt("created_at", WEEK_END);
 
   if(error){
     console.error(error);
     return players;
   }
 
-  const thisWeek = getWeekRange(0);
-  const lastWeek = getWeekRange(-1);
 
   const map = {};
 
@@ -281,28 +270,22 @@ async function attachWeeklyRake(players){
     map[p.player_uid] = p;
   });
 
-  data?.forEach(log=>{
+data?.forEach(log=>{
 
-    const player = map[log.player_uid];
-    if(!player) return;
+  const player = map[log.player_uid];
+  if(!player) return;
 
-    const date = new Date(log.created_at);
+  const ts = log.created_at;
+  player.this_week += Number(log.rake);
+  
 
-    if(date >= thisWeek.start && date <= thisWeek.end)
-      player.this_week += Number(log.rake);
+  if(!player.last_activity || ts > player.last_activity){
+    player.last_activity = ts;
+    player.last_rake = Number(log.rake);
+  }
+  
 
-    if(date >= lastWeek.start && date <= lastWeek.end)
-      player.last_week += Number(log.rake);
-
-    // ⭐ LAST ACTIVITY
-    if(
-      !player.last_activity ||
-      date > new Date(player.last_activity)
-    ){
-      player.last_activity = log.created_at;
-      player.last_rake = Number(log.rake);
-    }
-
+  
   });
 
   return players;
@@ -676,7 +659,7 @@ ${
   currentView !== "last_week"
     ? `
 <td style="color:#4ade80;font-weight:600;width:150px;">
-  ${formatDuration(p.seated_at)}
+  ${formatLastActivity(p)}
 </td>
 `
     : ""
@@ -689,13 +672,16 @@ ${
 }
 
 
-
-
 // =============================
 // DASHBOARD
 // =============================
 
 async function loadDashboard(){
+
+  const { data: week } = await sb.rpc('get_week_range');
+
+WEEK_START = week[0].start_week;
+WEEK_END = week[0].end_week;
 
   agentNameEl.innerText = `UID: ${agent_uid}`;
 
@@ -724,77 +710,26 @@ async function loadDashboard(){
   lastWeekRakeEl.innerText = "$"+lastWeek.toLocaleString();
 
   renderTable();
+  if(!realtimeStarted){
+   startRealtime();
+   realtimeStarted = true;
+}
 }
 
-// Realtime listerner bảng rake_logs
-sb.channel('rake-live')
-.on(
-  'postgres_changes',
-  {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'rake_logs',
-    filter: `agent_uid=eq.${agent_uid}`
-  },
-  payload => {
+//RELOAD LẠI BUSINESS DATA
 
-    const log = payload.new;
+async function reloadBusinessData(){
 
-    const player = allPlayers.find(
-      p => p.player_uid === log.player_uid
-    );
+  const { data } = await sb.rpc('get_week_range');
 
-    if(!player) return;
+  const newStart = data[0].start_week;
 
-    const rake = Number(log.rake);
+  if(newStart === WEEK_START) return;
 
-    // update metrics
-    player.this_week += rake;
-    player.total_rake += rake;
+  console.log("NEW WEEK!");
 
-    // ⭐ update last activity ngay lập tức
-    player.last_activity = log.created_at;
-    player.last_rake = rake;
-
-    // update cards nhanh
-    thisWeekRakeEl.innerText =
-      "$" + allPlayers
-        .reduce((s,p)=>s+(p.this_week||0),0)
-        .toLocaleString();
-
-    totalRakeEl.innerText =
-      "$" + allPlayers
-        .reduce((s,p)=>s+(p.total_rake||0),0)
-        .toLocaleString();
-
-    renderTable();
-  }
-)
-.subscribe();
-
-//realtime listioner bảng seats
-
-sb.channel('seats-live')
-.on(
-  'postgres_changes',
-  {
-    event:'*',
-    schema:'public',
-    table:'seats'
-    
-  },
-  payload => {
-
-    const uid =
-      payload.new?.player_uid ||
-      payload.old?.player_uid;
-
-    if(uid){
-      queueSeatRefresh(uid);
-    }
-  }
-)
-.subscribe();
+  await loadDashboard(); // loadDashboard tự set WEEK
+}
 
 
 
@@ -830,11 +765,97 @@ function logout(){
   window.location.href = "./agent-login.html";
 }
 
+// FUNTION start Realtime
+
+function startRealtime(){
+
+  if(!allPlayers.length) return; // Tránh rare bug khi reconnect socket
+
+  // ===== RAKE =====
+  sb.channel('rake-live')
+  .on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'rake_logs',
+      filter: `agent_uid=eq.${agent_uid}`
+    },
+    payload => {
+
+      if(!WEEK_START) return; // ⭐ safety
+
+      const log = payload.new;
+
+      const player = allPlayers.find(
+        p => p.player_uid === log.player_uid
+      );
+
+      if(!player) return;
+
+      const rake = Number(log.rake);
+
+      // luôn cộng total
+      player.total_rake += rake;
+
+      // chỉ cộng tuần này
+      if(log.created_at >= WEEK_START &&
+   log.created_at < WEEK_END){
+        player.this_week += rake;
+      }
+
+      player.last_activity = log.created_at;
+      player.last_rake = rake;
+
+      // update cards
+      thisWeekRakeEl.innerText =
+        "$" + allPlayers
+          .reduce((s,p)=>s+(p.this_week||0),0)
+          .toLocaleString();
+
+      totalRakeEl.innerText =
+        "$" + allPlayers
+          .reduce((s,p)=>s+(p.total_rake||0),0)
+          .toLocaleString();
+
+      renderTable();
+    }
+  )
+  .subscribe();
+
+
+  // ===== SEATS =====
+  sb.channel('seats-live')
+  .on(
+    'postgres_changes',
+    {
+      event:'*',
+      schema:'public',
+      table:'seats'
+    },
+    payload => {
+
+      const uid =
+        payload.new?.player_uid ||
+        payload.old?.player_uid;
+
+      if(uid){
+        queueSeatRefresh(uid);
+      }
+    }
+  )
+  .subscribe();
+
+}
+
+
 
 // START
 loadDashboard();
 
 setInterval(renderTable, 60000);
+setInterval(reloadBusinessData, 300000); // 5 phút
+
 
 </script>
 
