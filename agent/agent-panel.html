@@ -41,23 +41,10 @@ body{
   color:#f87171;
 }
 
-.logout:hover{
-  background:rgba(248,113,113,0.1);
-}
-
 .agent-name{
   color:#94a3b8;
   margin-bottom:20px;
 }
-
-.footer{
-  margin-top:24px;
-  text-align:center;
-  color:#64748b;
-  font-size:12px;
-}
-
-/* CARDS */
 
 .cards{
   display:grid;
@@ -75,11 +62,6 @@ body{
 
 .card[data-view]{
   cursor:pointer;
-  transition:.2s;
-}
-
-.card[data-view]:hover{
-  transform:translateY(-4px);
 }
 
 .card.active{
@@ -98,12 +80,6 @@ body{
   margin-top:6px;
 }
 
-/* TABLE */
-
-.section-title{
-  margin-bottom:12px;
-}
-
 .table{
   width:100%;
   border-collapse:collapse;
@@ -119,6 +95,17 @@ body{
 .table td{
   padding:14px 12px;
   border-bottom:1px solid rgba(255,255,255,0.04);
+}
+
+/* FLASH */
+
+@keyframes rakeFlash{
+  0%{ background:rgba(34,197,94,0.6); }
+  100%{ background:transparent; }
+}
+
+.rake-flash{
+  animation:rakeFlash 3s ease;
 }
 
 </style>
@@ -158,23 +145,10 @@ body{
 
   </div>
 
-  <div class="section">
-    <div class="section-title">Your Players</div>
-
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Player ID</th>
-          
-          <th id="tableMetric">This Week</th>
-          
-        </tr>
-      </thead>
-      <tbody id="playersBody"></tbody>
-    </table>
-  </div>
-
-  <div class="footer">Internal System</div>
+  <table class="table">
+    <thead></thead>
+    <tbody id="playersBody"></tbody>
+  </table>
 
 </div>
 
@@ -182,462 +156,270 @@ body{
 
 <script>
 
-// =============================
-// SUPABASE INIT
-// =============================
-
 const sb = supabase.createClient(
   "https://ymtmipkmknnsqleahlmi.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdG1pcGtta25uc3FsZWFobG1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAwOTU1MjUsImV4cCI6MjA4NTY3MTUyNX0.7pEza-TKBKJ_xqdBu93nLo-PRaHDcDIxW-bjZnrFJxw"
 );
 
 const agent_uid = localStorage.getItem("agent_uid");
+if(!agent_uid) window.location.href="./agent-login.html";
 
-if(!agent_uid){
-  window.location.href = "./agent-login.html";
-}
+let allPlayers=[];
+let currentView="this_week";
 
-// =============================
-// GLOBAL STATE
-// =============================
+let WEEK_START, LAST_WEEK_START, WEEK_END;
 
-let allPlayers = [];
-let realtimeStarted = false;
+const playersBody=document.getElementById("playersBody");
+const totalPlayersEl=document.getElementById("totalPlayers");
+const totalRakeEl=document.getElementById("totalRake");
+const thisWeekRakeEl=document.getElementById("thisWeekRake");
+const lastWeekRakeEl=document.getElementById("lastWeekRake");
+const agentNameEl=document.getElementById("agentName");
 
-// Business week (SERVER DRIVEN)
-let WEEK_START = null;
-let LAST_WEEK_START = null;
-let WEEK_END = null;
-
-// DOM
-const playersBody = document.getElementById("playersBody");
-const totalPlayersEl = document.getElementById("totalPlayers");
-const totalRakeEl = document.getElementById("totalRake");
-const thisWeekRakeEl = document.getElementById("thisWeekRake");
-const lastWeekRakeEl = document.getElementById("lastWeekRake");
-const agentNameEl = document.getElementById("agentName");
-
-// make Total Players clickable
 document.querySelector("#totalPlayers")
 .closest(".card")
 .setAttribute("data-view","players_state");
 
-// =============================
-// FETCH PLAYERS
-// =============================
+/* =========================
+FETCH
+========================= */
 
 async function getPlayers(){
-
-  const { data, error } = await sb
+  const {data}=await sb
     .from("players")
     .select("player_uid,total_rake")
-    .eq("agent_uid", agent_uid);
+    .eq("agent_uid",agent_uid);
 
-  if(error){
-    console.error(error);
-    return [];
-  }
-
-  return data || [];
+  return data||[];
 }
-
-// =============================
-// LOAD THIS + LAST WEEK
-// (financial-safe pattern)
-// =============================
 
 async function attachWeeklyRake(players){
 
-  const { data, error } = await sb
+  const {data}=await sb
     .from("rake_logs")
     .select("player_uid,rake,created_at")
-    .eq("agent_uid", agent_uid)
-    .gte("created_at", LAST_WEEK_START)
-    .lt("created_at", WEEK_END);
+    .eq("agent_uid",agent_uid)
+    .gte("created_at",LAST_WEEK_START)
+    .lt("created_at",WEEK_END);
 
-  if(error){
-    console.error(error);
-    return players;
-  }
-
-  const map = {};
+  const map={};
 
   players.forEach(p=>{
-    p.this_week = 0;
-    p.last_week = 0;
-    p.last_activity = null;
-    p.last_rake = 0;
-
-    map[p.player_uid] = p;
+    p.this_week=0;
+    p.last_week=0;
+    p.last_activity=null;
+    p.last_rake=0;
+    map[p.player_uid]=p;
   });
 
   data?.forEach(log=>{
+    const p=map[log.player_uid];
+    if(!p) return;
 
-    const player = map[log.player_uid];
-    if(!player) return;
+    const rake=Number(log.rake);
+    const ts=new Date(log.created_at);
 
-    const ts = new Date(log.created_at);
-    const rake = Number(log.rake);
-
-    // classify week
-    if(ts >= new Date(WEEK_START)){
-      player.this_week += rake;
-    }else{
-      player.last_week += rake;
-    }
-
-    // last activity
-    if(!player.last_activity || ts > new Date(player.last_activity)){
-      player.last_activity = log.created_at;
-      player.last_rake = rake;
-    }
-
-  });
-
-  return players;
-}
-
-// =============================
-// LOAD SEATS (ONLINE STATUS)
-// =============================
-
-async function attachPlayerState(players){
-
-  const { data } = await sb
-    .from("seats")
-    .select("player_uid,table_uid,seat_number,seated_at")
-    .not("player_uid","is",null);
-
-  const seatMap = {};
-
-  data?.forEach(seat=>{
-    seatMap[String(seat.player_uid)] = seat;
-  });
-
-  players.forEach(p=>{
-
-    const seat = seatMap[String(p.player_uid)];
-
-    p.is_online = Boolean(seat);
-    p.table_position = seat
-      ? `${seat.table_uid}-${seat.seat_number}`
-      : "-";
-
-    p.seated_at = seat?.seated_at || null;
-  });
-
-  return players;
-}
-
-// =============================
-// FORMATTERS
-// =============================
-
-function formatDuration(seatedAt){
-
-  if(!seatedAt) return "-";
-
-  const diff =
-    (Date.now() - new Date(seatedAt)) / 60000;
-
-  let color = "#4ade80";
-
-  if(diff > 60) color = "#fbbf24";
-  if(diff > 120) color = "#f87171";
-
-  const h = Math.floor(diff / 60);
-  const m = Math.floor(diff % 60);
-
-  return `<span style="color:${color}">
-            ${h}h ${m}m
-          </span>`;
-}
-
-function formatLastActivity(player){
-
-  if(!player.last_activity) return "-";
-
-  const diffMin =
-    (Date.now() - new Date(player.last_activity)) / 60000;
-
-  if(diffMin >= 120) return "-";
-
-  const amount = `+$${player.last_rake}`;
-
-  if(diffMin < 1){
-    const time =
-      new Date(player.last_activity)
-      .toLocaleTimeString([],{
-        hour:'2-digit',
-        minute:'2-digit'
-      });
-
-    return `${amount} ${time}`;
-  }
-
-  if(diffMin < 60)
-    return `${amount} ${Math.floor(diffMin)}m ago`;
-
-  return `${amount} ${Math.floor(diffMin/60)}h ago`;
-}
-
-// =============================
-// RENDER
-// =============================
-
-
-  function renderTable(){
-
-    const thead = document.querySelector(".table thead");
-
-if(currentView === "players_state"){
-  thead.innerHTML = `
-    <tr>
-      <th>Player</th>
-      <th>Status</th>
-      <th>Table</th>
-    </tr>
-  `;
-}else{
-
-  const label =
-    currentView === "total"
-      ? "Total Rake"
-      : currentView === "last_week"
-      ? "Last Week"
-      : "This Week";
-
-  thead.innerHTML = `
-    <tr>
-      <th>Player ID</th>
-      <th>${label}</th>
-      <th>Last Activity</th>
-    </tr>
-  `;
-}
-
-
-  // ===== PLAYER STATE VIEW =====
-  if(currentView === "players_state"){
-
-    playersBody.innerHTML = allPlayers
-      .sort((a,b)=> b.is_online - a.is_online)
-      .map(p=>`
-        <tr>
-          <td>${p.player_uid}</td>
-          <td>
-            ${
-              p.is_online
-                ? formatDuration(p.seated_at)
-                : "💤"
-            }
-          </td>
-          <td>${p.table_position}</td>
-        </tr>
-      `).join("");
-
-    return;
-  }
-
-  // ===== RAKE VIEWS =====
-
-  playersBody.innerHTML = allPlayers.map(p=>{
-
-    let value = 0;
-
-    if(currentView === "total")
-      value = p.total_rake;
-
-    else if(currentView === "last_week")
-      value = p.last_week;
-
+    if(ts>=new Date(WEEK_START))
+      p.this_week+=rake;
     else
-      value = p.this_week;
+      p.last_week+=rake;
+
+    if(!p.last_activity || ts>new Date(p.last_activity)){
+      p.last_activity=log.created_at;
+      p.last_rake=rake;
+    }
+  });
+
+  return players;
+}
+
+/* =========================
+RENDER
+========================= */
+
+function renderTable(){
+
+  const thead=document.querySelector(".table thead");
+
+  if(currentView==="last_week"){
+    thead.innerHTML=`
+      <tr>
+        <th>Player ID</th>
+        <th>Last Week</th>
+      </tr>`;
+  }else if(currentView==="players_state"){
+    thead.innerHTML=`
+      <tr>
+        <th>Player</th>
+        <th>Status</th>
+      </tr>`;
+  }else{
+    const label=currentView==="total"
+      ?"Total Rake":"This Week";
+
+    thead.innerHTML=`
+      <tr>
+        <th>Player ID</th>
+        <th>${label}</th>
+        <th>Last Activity</th>
+      </tr>`;
+  }
+
+  playersBody.innerHTML=allPlayers.map(p=>{
+
+    let value=
+      currentView==="total"
+      ?p.total_rake
+      :currentView==="last_week"
+      ?p.last_week
+      :p.this_week;
+
+    if(currentView==="last_week"){
+      return `
+      <tr data-uid="${p.player_uid}">
+        <td>${p.player_uid}</td>
+        <td class="rake">$${value.toLocaleString()}</td>
+      </tr>`;
+    }
 
     return `
-      <tr>
-        <td>${p.player_uid}</td>
-        <td>$${value.toLocaleString()}</td>
-        <td>${formatLastActivity(p)}</td>
-      </tr>
-    `;
+    <tr data-uid="${p.player_uid}">
+      <td>${p.player_uid}</td>
+      <td class="rake">$${value.toLocaleString()}</td>
+      <td>${p.last_activity
+        ?"+$"+p.last_rake
+        :"–"}</td>
+    </tr>`;
   }).join("");
 }
 
+/* =========================
+PATCH ROW (NO RE-RENDER)
+========================= */
 
+function patchRakeRow(player){
 
-// =============================
-// CARD SWITCH VIEW
-// =============================
+  const row=document.querySelector(
+    `tr[data-uid="${player.player_uid}"]`
+  );
+  if(!row) return;
 
-let currentView = "this_week";
+  const cell=row.querySelector(".rake");
 
-document.querySelectorAll(".card[data-view]")
-.forEach(card=>{
+  let value=
+    currentView==="total"
+      ?player.total_rake
+      :currentView==="last_week"
+      ?player.last_week
+      :player.this_week;
 
-  card.addEventListener("click",()=>{
+  cell.textContent="$"+value.toLocaleString();
 
-    document
-      .querySelectorAll(".card[data-view]")
-      .forEach(c=>c.classList.remove("active"));
-
-    card.classList.add("active");
-
-    currentView = card.dataset.view;
-
-    renderTable();
-
-  });
-
-});
-
-
-// =============================
-// LOAD DASHBOARD
-// =============================
-
-async function loadDashboard(){
-
-  // SERVER CLOCK
-  const { data } = await sb.rpc('get_week_range');
-
-  WEEK_START = data[0].start_this_week;
-  LAST_WEEK_START = data[0].start_last_week;
-  WEEK_END = data[0].end_this_week;
-
-  agentNameEl.innerText = `UID: ${agent_uid}`;
-
-  let players = await getPlayers();
-
-  players = await attachWeeklyRake(players);
-  players = await attachPlayerState(players);
-
-  allPlayers = players;
-
-  // TOTAL PLAYERS
-const onlineCount =
-  players.filter(p=>p.is_online).length;
-
-totalPlayersEl.innerHTML =
-  `<span style="color:#4ade80">${onlineCount}</span> / ${players.length}`;
-
-  // cards
-  const total = players.reduce((s,p)=>s+p.total_rake,0);
-  const thisWeek = players.reduce((s,p)=>s+p.this_week,0);
-  const lastWeek = players.reduce((s,p)=>s+p.last_week,0);
-
-  totalRakeEl.innerText = "$"+total.toLocaleString();
-  thisWeekRakeEl.innerText = "$"+thisWeek.toLocaleString();
-  lastWeekRakeEl.innerText = "$"+lastWeek.toLocaleString();
-
-  renderTable();
-
-  // start realtime ONCE
-  if(!realtimeStarted){
-    startRealtime();
-    realtimeStarted = true;
-  }
+  cell.classList.remove("rake-flash");
+  void cell.offsetWidth;
+  cell.classList.add("rake-flash");
 }
 
-// =============================
-// REALTIME (NO DOUBLE SOCKET)
-// =============================
+/* =========================
+REALTIME (SINGLE CHANNEL)
+========================= */
 
 function startRealtime(){
 
   sb.removeAllChannels();
 
-  // RAKE STREAM
-  sb.channel('rake-live')
+  sb.channel("agent-live")
   .on('postgres_changes',{
-      event:'INSERT',
-      schema:'public',
-      table:'rake_logs',
-      filter:`agent_uid=eq.${agent_uid}`
-  }, payload=>{
+    event:'INSERT',
+    schema:'public',
+    table:'rake_logs',
+    filter:`agent_uid=eq.${agent_uid}`
+  },payload=>{
 
-      const log = payload.new;
-      const player = allPlayers.find(
-        p=>p.player_uid===log.player_uid
-      );
+    const log=payload.new;
+    const player=allPlayers.find(
+      p=>p.player_uid===log.player_uid
+    );
+    if(!player) return;
 
-      if(!player) return;
+    const rake=Number(log.rake);
+    const ts=new Date(log.created_at);
 
-      const ts = new Date(log.created_at);
-      const rake = Number(log.rake);
+    player.total_rake+=rake;
 
-      player.total_rake += rake;
+    if(ts>=new Date(WEEK_START))
+      player.this_week+=rake;
+    else
+      player.last_week+=rake;
 
-     if(
-   ts >= new Date(WEEK_START) &&
-   ts < new Date(WEEK_END)
-){
-   player.this_week += rake;
-}else{
-   player.last_week += rake;
+    player.last_activity=log.created_at;
+    player.last_rake=rake;
+
+    updateCards();
+    patchRakeRow(player);
+
+  }).subscribe();
 }
 
-      player.last_activity = log.created_at;
-      player.last_rake = rake;
+/* ========================= */
 
-      // ✅ UPDATE CARDS REALTIME
-totalRakeEl.innerText =
-  "$" + allPlayers
-    .reduce((s,p)=>s+p.total_rake,0)
-    .toLocaleString();
+function updateCards(){
 
-thisWeekRakeEl.innerText =
-  "$" + allPlayers
-    .reduce((s,p)=>s+p.this_week,0)
-    .toLocaleString();
+  const total=allPlayers.reduce((s,p)=>s+p.total_rake,0);
+  const thisWeek=allPlayers.reduce((s,p)=>s+p.this_week,0);
+  const lastWeek=allPlayers.reduce((s,p)=>s+p.last_week,0);
 
-lastWeekRakeEl.innerText =
-  "$" + allPlayers
-    .reduce((s,p)=>s+p.last_week,0)
-    .toLocaleString();
-
-renderTable();
-      
-      
-      
-      
-      renderTable();
-  })
-  .subscribe();
-
+  totalRakeEl.innerText="$"+total.toLocaleString();
+  thisWeekRakeEl.innerText="$"+thisWeek.toLocaleString();
+  lastWeekRakeEl.innerText="$"+lastWeek.toLocaleString();
 }
 
-// =============================
-// AUTO WEEK ROLLOVER
-// =============================
+/* =========================
+LOAD
+========================= */
 
-async function reloadBusinessData(){
+async function loadDashboard(){
 
-  const { data } = await sb.rpc('get_week_range');
+  const {data}=await sb.rpc('get_week_range');
 
-  const newStart = data[0].start_this_week;
+  WEEK_START=data[0].start_this_week;
+  LAST_WEEK_START=data[0].start_last_week;
+  WEEK_END=data[0].end_this_week;
 
-  if(newStart === WEEK_START) return;
+  agentNameEl.innerText=`UID: ${agent_uid}`;
 
-  console.log("NEW WEEK DETECTED");
+  let players=await getPlayers();
+  players=await attachWeeklyRake(players);
 
-  realtimeStarted = false;
+  allPlayers=players;
 
-  await loadDashboard();
+  totalPlayersEl.innerText=players.length;
+
+  updateCards();
+  renderTable();
+  startRealtime();
 }
 
-// =============================
-// START
-// =============================
+/* =========================
+VIEW SWITCH
+========================= */
+
+document.querySelectorAll(".card[data-view]")
+.forEach(card=>{
+  card.addEventListener("click",()=>{
+
+    document.querySelectorAll(".card")
+      .forEach(c=>c.classList.remove("active"));
+
+    card.classList.add("active");
+
+    currentView=card.dataset.view;
+    renderTable();
+  });
+});
 
 loadDashboard();
 
-// check rollover mỗi 60s
-setInterval(reloadBusinessData, 60000);
-
 </script>
-
-
-
 </body>
 </html>
