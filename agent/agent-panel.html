@@ -339,7 +339,7 @@ async function attachPlayerState(players){
       seatMap[uid] = {
         table: `${seat.table_uid}-${seat.seat_number}`,
         online: true,
-        seated_at: seat.seated_at
+        seated_at: seat.created_at 
       };
     }
   });
@@ -484,6 +484,9 @@ function formatLastActivity(player){
 
 }
 
+
+
+
 // Bộ đếm thời gian ngồi 
 function formatDuration(seatedAt){
 
@@ -528,6 +531,11 @@ function updateSeatTimers(){
         : `<span style="color:#64748b">💤</span>`;
     });
 }
+
+
+
+
+
 
 
 setInterval(updateSeatTimers, 1000);
@@ -668,7 +676,7 @@ ${
   currentView !== "last_week"
     ? `
 <td style="color:#4ade80;font-weight:600;width:150px;">
-  ${formatLastActivity(p)}
+  ${formatDuration(p.seated_at)}
 </td>
 `
     : ""
